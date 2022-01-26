@@ -3,10 +3,10 @@
 port: 4000
 markdown:  kramdown
 permalink: /:title
-plugins:   [jekyll-sitemap, jekyll-feed,  jekyll-seo-tag]
+plugins:   [jekyll-sitemap, jekyll-feed,  jekyll-seo-tag, jekyll-spaceship]
 
 # Customise atom feed settings (this is where Jekyll-Feed gets configuration information)
 
-title:		   "Portfolio Jekyll Theme"
+title:		   "Synthetic Dark"
 description: "Powered by Jekyll and GitHub Pages"
-author:      "Paul Le"
+author:      "Tom Chandler"
