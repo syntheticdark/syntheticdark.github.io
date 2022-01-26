@@ -1,6 +1,14 @@
 <header>
   <div class="logo">
     <a href="{{ site.github.url }}/">{{ site.title }}</a>
+    <img src="/apple-touch-icon-precomposed.png"
+      onmouseover="this.src='apple-touch-icon-precomposed_hover.png'"
+      onmouseout="this.src='/apple-touch-icon-precomposed.png'"
+      alt="synthetic dark logo"
+      width="54"
+      height="54" /></a>
+
+  <a href="{{ site.github.url }}/">{{ site.title }}</a>
   </div>
   <nav>
     {% for item in site.data.settings.menu %}
