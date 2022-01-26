@@ -3,29 +3,37 @@
 
 menu:
 - {name: 'Projects', url: ''}
-- {name: 'Blog',     url: 'blog'}
+- {name: 'Writing',  url: 'Writing'}
 - {name: 'About',    url: 'about'}
 - {name: 'Contact',  url: 'contact'}
+
 
 #-------------------------------
 # Projects Section
 
+
 projects:
-- {name: 'Project One',   url: 'proj-1'}
-- {name: 'Project Two',   url: 'proj-2'}
-- {name: 'Project Three', url: 'proj-3'}
-- {name: 'Project Four',  url: 'proj-4'}
-- {name: 'Project Five',  url: 'proj-5'}
+- {name: 'Show Reel',                url: 'show-reel'}
+- {name: 'Reflex',                   url: 'reflex'}
+- {name: 'Ataraxia',                 url: 'ataraxia'}
+- {name: 'Pigs and Courgettes',      url: 'pigs-and-courgettes'}
+- {name: 'Alder',                    url: 'alder'}
+- {name: 'Into Dust',                url: 'into-dust'}
+- {name: 'Teenage Engineering',      url: 'teenage-engineering'}
+- {name: 'Fyrhyl',                   url: 'fyrhyl'}
+- {name: 'Mammabarn',                url: 'mammabarn'}
+
+
 
 #-------------------------------
 # Contact Section
 
 social:
-- {icon: 'twitter',   link: 'https://twitter.com/paululele'}
-- {icon: 'instagram', link: 'https://instagram.com/paululele'}
-- {icon: 'github',    link: 'https://github.com/lenpaul'}
-- {icon: 'linkedin',  link: 'https://linkedin.com/in/lenpaul'}
-- {icon: 'envelope',  link: 'mailto:mailto:l.nguyen.paul@gmail.com'}
+#- {icon: 'twitter',   link: '#'}
+#- {icon: 'instagram', link: '#'}
+#- {icon: 'github',    link: '#'}
+#- {icon: 'linkedin',  link: '#'}
+- {icon: 'envelope',  link: 'mailto:tom+web@syntheticdark.com'}
 
 # social network icons available: 'twitter' / 'facebook' / 'github' / 'pinterest' 'google-plus' / 'linkedin' / 'youtube' / 'instagram' / 'dribbble' / 'behance' / 'soundcloud' / 'vine'
 
@@ -48,7 +56,7 @@ seo:
 # NOTE: If you want to use Google Analytics for basic web tracking: Just uncomment and enter your UA-Code here.
 
 # If you are not using Google Analytics, please change 'google-ID' to an empty string
-google-analytics-ua: 'UA-112060364-3'
+google-analytics-ua: ''
 
 #-------------------------------
 # Disqus Section
