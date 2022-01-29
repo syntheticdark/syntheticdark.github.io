@@ -5,9 +5,6 @@
 <lastmod>2021-05-27T00:00:00+01:00</lastmod>
 </url>
 <url>
-<loc>http://localhost:4000/Writing</loc>
-</url>
-<url>
 <loc>http://localhost:4000/about</loc>
 </url>
 <url>
@@ -45,5 +42,8 @@
 </url>
 <url>
 <loc>http://localhost:4000/projects/torsion</loc>
+</url>
+<url>
+<loc>http://localhost:4000/writing</loc>
 </url>
 </urlset>
