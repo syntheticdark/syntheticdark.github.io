@@ -1,6 +1,6 @@
 ---
 layout: post
-title: 'Show Reel'
+title: 'Show reel'
 ---
 [Editing]()
 
