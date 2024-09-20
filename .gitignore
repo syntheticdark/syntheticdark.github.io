@@ -33,3 +33,5 @@ _site
 
 ### Gemfile ###
 Gemfile.lock
+_site/feed.xml
+_site/README.md
