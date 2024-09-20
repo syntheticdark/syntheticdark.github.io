@@ -752,9 +752,9 @@ header {
 }
 header .logo {
   float: left;
-  margin: 30px;
-  font-size: 24px;
-  font-weight: 700;
+  margin: 19px;
+  font-size: 26px;
+  font-weight: bolder;
 }
 header .logo a {
   display: inline-block;

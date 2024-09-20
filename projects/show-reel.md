@@ -11,4 +11,4 @@ title: 'Show reel'
 
 
 
-2025 show reel for synthetic dark
+2025 show reel for synthetic dark.
