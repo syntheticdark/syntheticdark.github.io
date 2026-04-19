@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Pro Mask Compositor</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: #111; font-family: sans-serif; color: white; }
+        #canvas-container {
+            position: relative; width: 100vw; height: 100vh;
+            display: flex; justify-content: center; align-items: center;
+            overflow: hidden;
+        }
+        #layer-one { position: absolute; z-index: 1; pointer-events: none; }
+        #webcam-wrapper {
+            position: absolute; z-index: 2;
+            display: flex; align-items: center; justify-content: center;
+            pointer-events: none; overflow: hidden;
+            /* Transform origin center ensures rotation happens around the mask */
+            transform-origin: center center; 
+        }
+        #layer-two-video { width: 100%; height: 100%; object-fit: cover; }
+
+        #controls {
+            position: fixed; top: 10px; left: 10px;
+            z-index: 100; background: rgba(20, 20, 20, 0.95);
+            border-radius: 12px; width: 280px; border: 1px solid #555; 
+            font-size: 11px; box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        }
+        #drag-handle {
+            padding: 12px; background: #333; border-radius: 12px 12px 0 0;
+            cursor: move; text-align: center; font-weight: bold; color: #aaa;
+            user-select: none; touch-action: none;
+        }
+        .scroll-area { padding: 15px; max-height: 80vh; overflow-y: auto; }
+        .section { margin-bottom: 12px; border-bottom: 1px solid #333; padding-bottom: 8px; }
+        .row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        label { color: #ccc; font-size: 9px; text-transform: uppercase; min-width: 70px; }
+        input[type="range"] { flex-grow: 1; height: 25px; cursor: pointer; touch-action: pan-x; }
+        button { padding: 12px; cursor: pointer; border: none; border-radius: 8px; font-weight: bold; font-size: 11px; }
+        #startBtn { background: #059669; color: white; width: 100%; margin-bottom: 10px; }
+        .action-btns { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+        .save-btn { background: #2563eb; color: white; grid-column: span 2; }
+        .secondary-btn { background: #4b5563; color: white; }
+    </style>
+</head>
+<body>
+
+    <div id="controls">
+        <div id="drag-handle">⠿ DRAG TO MOVE ⠿</div>
+        <div class="scroll-area">
+            <button id="startBtn">1. ENABLE WEBCAM</button>
+
+            <div class="section">
+                <strong>TRANSFORM</strong>
+                <div class="row"><label>Rotate</label> <input type="range" id="camRot" min="-180" max="180" value="0"></div>
+                <div class="row"><label>Skew X</label> <input type="range" id="camSkewX" min="-45" max="45" value="0"></div>
+                <div class="row"><label>Skew Y</label> <input type="range" id="camSkewY" min="-45" max="45" value="0"></div>
+            </div>
+
+            <div class="section">
+                <strong>POSITIONING</strong>
+                <div class="row"><label>BG Scale</label> <input type="range" id="bgScale" min="10" max="500" value="100"></div>
+                <div class="row"><label>Cam Size</label> <input type="range" id="camScale" min="5" max="200" value="50"></div>
+                <div class="row"><label>Cam X</label> <input type="range" id="camX" min="0" max="100" value="50"></div>
+                <div class="row"><label>Cam Y</label> <input type="range" id="camY" min="0" max="100" value="50"></div>
+            </div>
+
+            <div class="section">
+                <strong>ALPHA MASK</strong>
+                <div class="row"><label>Size</label> <input type="range" id="maskSize" min="1" max="100" value="35"></div>
+                <div class="row"><label>Aspect</label> <input type="range" id="maskAspect" min="0.2" max="5.0" step="0.1" value="1.0"></div>
+                <div class="row"><label>Feather</label> <input type="range" id="maskFeather" min="0" max="100" value="30"></div>
+                <div class="row"><label>Mask X</label> <input type="range" id="maskX" min="0" max="100" value="50"></div>
+                <div class="row"><label>Mask Y</label> <input type="range" id="maskY" min="0" max="100" value="50"></div>
+            </div>
+
+            <div class="section">
+                <input type="file" id="imageLoader" accept="image/*" style="width: 100%; margin-bottom: 10px;">
+                <div class="action-btns">
+                    <button id="snapshotBtn" class="save-btn">DOWNLOAD SNAPSHOT</button>
+                    <button id="flipBtn" class="secondary-btn">FLIP CAM</button>
+                    <button id="resetMona" class="secondary-btn">RESET MONA</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-container">
+        <img id="layer-one" src="mona.jpg" onerror="this.src='https://via.placeholder.com/800x600?text=mona.jpg+missing'">
+        <div id="webcam-wrapper">
+            <video id="layer-two-video" autoplay playsinline muted></video>
+        </div>
+    </div>
+
+    <canvas id="exportCanvas" style="display:none;"></canvas>
+
+    <script>
+        const video = document.getElementById('layer-two-video');
+        const bgImg = document.getElementById('layer-one');
+        const camWrapper = document.getElementById('webcam-wrapper');
+        const exportCanvas = document.getElementById('exportCanvas');
+        const controls = document.getElementById('controls');
+        const dragHandle = document.getElementById('drag-handle');
+
+        // Drag Logic
+        let isDragging = false, offset = { x: 0, y: 0 };
+        const startDrag = (e) => {
+            if (e.target !== dragHandle) return;
+            isDragging = true;
+            const t = e.type === 'touchstart' ? e.touches[0] : e;
+            offset.x = t.clientX - controls.offsetLeft;
+            offset.y = t.clientY - controls.offsetTop;
+        };
+        const doDrag = (e) => {
+            if (!isDragging) return;
+            const t = e.type === 'touchmove' ? e.touches[0] : e;
+            controls.style.left = (t.clientX - offset.x) + 'px';
+            controls.style.top = (t.clientY - offset.y) + 'px';
+        };
+        dragHandle.addEventListener('mousedown', startDrag);
+        dragHandle.addEventListener('touchstart', startDrag);
+        window.addEventListener('mousemove', doDrag);
+        window.addEventListener('touchmove', doDrag, { passive: false });
+        window.addEventListener('mouseup', () => isDragging = false);
+
+        // UI & Sliders
+        const sliders = {};
+        document.querySelectorAll('input[type="range"]').forEach(s => {
+            sliders[s.id] = s;
+            s.oninput = updateUI;
+        });
+
+        function updateUI() {
+            bgImg.style.width = sliders.bgScale.value + 'vw';
+            
+            // Positioning
+            camWrapper.style.width = sliders.camScale.value + 'vw';
+            camWrapper.style.height = sliders.camScale.value + 'vw'; 
+            camWrapper.style.left = sliders.camX.value + '%';
+            camWrapper.style.top = sliders.camY.value + '%';
+            
+            // Transforms
+            const rot = sliders.camRot.value + 'deg';
+            const skX = sliders.camSkewX.value + 'deg';
+            const skY = sliders.camSkewY.value + 'deg';
+            camWrapper.style.transform = `translate(-50%, -50%) rotate(${rot}) skew(${skX}, ${skY})`;
+
+            // Masking
+            const ma = parseFloat(sliders.maskAspect.value);
+            const ms = parseFloat(sliders.maskSize.value);
+            const mf = parseFloat(sliders.maskFeather.value);
+            const mask = `radial-gradient(ellipse ${ms}% ${ms/ma}% at ${sliders.maskX.value}% ${sliders.maskY.value}%, black ${ms - mf/2}%, transparent ${ms + mf/2}%)`;
+            video.style.webkitMaskImage = mask;
+            video.style.maskImage = mask;
+        }
+
+        // Camera
+        let mode = "user";
+        async function start() {
+            try {
+                const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: mode } });
+                video.srcObject = s;
+                document.getElementById('startBtn').style.display = 'none';
+            } catch (e) { alert("Camera Error"); }
+        }
+        document.getElementById('startBtn').onclick = start;
+        document.getElementById('flipBtn').onclick = () => { mode = mode === "user" ? "environment" : "user"; start(); };
+        document.getElementById('imageLoader').onchange = (e) => {
+            const r = new FileReader(); r.onload = (ev) => bgImg.src = ev.target.result; r.readAsDataURL(e.target.files[0]);
+        };
+        document.getElementById('resetMona').onclick = () => bgImg.src = 'mona.jpg';
+
+        // Snapshot
+        document.getElementById('snapshotBtn').onclick = () => {
+            const ctx = exportCanvas.getContext('2d');
+            const w = bgImg.naturalWidth, h = bgImg.naturalHeight;
+            if(!w) return;
+            exportCanvas.width = w; exportCanvas.height = h;
+            ctx.drawImage(bgImg, 0, 0, w, h);
+
+            const camW = (sliders.camScale.value/100)*w, camH = camW;
+            const camX = (sliders.camX.value/100)*w, camY = (sliders.camY.value/100)*h;
+
+            // Mask Creation
+            const mC = document.createElement('canvas'); mC.width = camW; mC.height = camH;
+            const mCtx = mC.getContext('2d');
+            const mx = (sliders.maskX.value/100)*camW, my = (sliders.maskY.value/100)*camH;
+            const ms = (sliders.maskSize.value/100)*camW, ma = parseFloat(sliders.maskAspect.value), mf = (sliders.maskFeather.value/100)*camW;
+            mCtx.translate(mx, my); mCtx.scale(1, 1/ma);
+            const g = mCtx.createRadialGradient(0,0,Math.max(0, ms-mf/2), 0,0,ms+mf/2);
+            g.addColorStop(0, 'black'); g.addColorStop(1, 'transparent');
+            mCtx.fillStyle = g; mCtx.fillRect(-mx, -my*ma, camW, camH*ma);
+
+            // Apply Mask to Video Frame
+            const fC = document.createElement('canvas'); fC.width = camW; fC.height = camH;
+            const fCtx = fC.getContext('2d');
+            const vr = video.videoWidth/video.videoHeight || 1;
+            let dW = camW, dH = camH, dX = 0, dY = 0;
+            if(vr > 1) { dW = camH*vr; dX = -(dW-camW)/2; } else { dH = camW/vr; dY = -(dH-camH)/2; }
+            fCtx.drawImage(video, dX, dY, dW, dH);
+            fCtx.globalCompositeOperation = 'destination-in';
+            fCtx.drawImage(mC, 0, 0);
+
+            // Draw to main canvas with transforms
+            ctx.save();
+            ctx.translate(camX, camY);
+            ctx.rotate(sliders.camRot.value * Math.PI / 180);
+            // Skew logic: ctx.transform(1, tan(skewY), tan(skewX), 1, 0, 0)
+            const tanX = Math.tan(sliders.camSkewX.value * Math.PI / 180);
+            const tanY = Math.tan(sliders.camSkewY.value * Math.PI / 180);
+            ctx.transform(1, tanY, tanX, 1, 0, 0);
+            
+            ctx.drawImage(fC, -camW/2, -camH/2);
+            ctx.restore();
+
+            const link = document.createElement('a'); link.download = 'snap.png'; link.href = exportCanvas.toDataURL(); link.click();
+        };
+
+        bgImg.onload = updateUI;
+        updateUI();
+    </script>
+</body>
+</html>
