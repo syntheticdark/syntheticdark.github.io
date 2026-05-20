@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mandarin Pitch Tracker</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background-color: #121214;
+            color: #e1e1e6;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: #1c1c1f;
+            padding: 30px;
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+            text-align: center;
+        }
+        h1 { margin-top: 0; color: #fff; }
+        .phrase-box {
+            background: #29292e;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+            border-left: 5px solid #00ffcc;
+        }
+        .chinese { font-size: 2.5rem; font-weight: bold; color: #fff; margin: 0; letter-spacing: 2px;}
+        .pinyin { font-size: 1.2rem; color: #a8a8b3; margin: 5px 0 0 0; }
+        
+        #canvas {
+            background: #09090a;
+            border-radius: 8px;
+            width: 100%;
+            height: 300px;
+            margin-top: 20px;
+            box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+        }
+        
+        .controls { margin-top: 25px; display: flex; justify-content: center; gap: 15px; }
+        button {
+            padding: 12px 28px;
+            font-size: 1rem;
+            font-weight: bold;
+            border: none;
+            border-radius: 30px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .btn-start { background-color: #00ffcc; color: #121214; }
+        .btn-start:hover { background-color: #00e6b8; transform: translateY(-1px); }
+        .btn-clear { background-color: #323238; color: #e1e1e6; }
+        .btn-clear:hover { background-color: #44444a; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; transform: none !important; }
+
+        .guide {
+            text-align: left;
+            background: #202024;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-top: 25px;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        .guide ul { margin: 5px 0 0 0; padding-left: 20px; color: #c4c4cc; }
+        .guide li { margin-bottom: 5px; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Mandarin Pitch Contour Tracker</h1>
+    <p>Visualize your vocal pitch over time to practice your tones.</p>
+    
+    <div class="phrase-box">
+        <p class="chinese">我是汤姆。</p>
+        <p class="pinyin">Wǒ (3) • shì (4) • Tāng (1) • mǔ (3)</p>
+    </div>
+
+    <div class="controls">
+        <button id="startBtn" class="btn-start">🎤 Start Tracking</button>
+        <button id="clearBtn" class="btn-clear" disabled>Reset Graph</button>
+    </div>
+
+    <canvas id="canvas" width="1600" height="600"></canvas>
+
+    <div class="guide">
+        <strong>💡 Target Tonal Guide:</strong>
+        <ul>
+            <li><strong>我 (Wǒ):</strong> Falling-rising profile. Look for a "U" shape dip at the beginning.</li>
+            <li><strong>是 (shì):</strong> High-to-low falling tone. Look for a steep downward ski-slope line.</li>
+            <li><strong>汤 (Tāng):</strong> High flat tone. Look for a high, steady horizontal segment.</li>
+            <li><strong>姆 (mǔ):</strong> Another dipping curve at the end.</li>
+        </ul>
+    </div>
+</div>
+
+<script>
+    const startBtn = document.getElementById('startBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const canvas = document.getElementById('canvas');
+    const ctx = canvas.getContext('2d');
+
+    let audioCtx = null;
+    let analyser = null;
+    let microphone = null;
+    let isTracking = false;
+    let animationFrameId = null;
+    
+    // Data storage for drawing the path
+    let pitchData = []; // array of {time: timestamp, pitch: frequency}
+    let startTime = null;
+    const maxDuration = 4000; // Track up to 4 seconds of audio
+
+    // Min/Max human speech frequencies to focus our Y axis (50Hz to 400Hz)
+    const MIN_FREQ = 60;
+    const MAX_FREQ = 360;
+
+    startBtn.addEventListener('click', toggleTracking);
+    clearBtn.addEventListener('click', resetTracker);
+
+    async function toggleTracking() {
+        if (!isTracking) {
+            try {
+                // Initialize Web Audio API on user click
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                microphone = audioCtx.createMediaStreamSource(stream);
+                analyser = audioCtx.createAnalyser();
+                analyser.fftSize = 2048; // Large window size provides better frequency resolution
+                
+                microphone.connect(analyser);
+                
+                // Reset data states
+                pitchData = [];
+                startTime = performance.now();
+                isTracking = true;
+                
+                startBtn.textContent = "🛑 Stop & View Plot";
+                startBtn.style.backgroundColor = "#ff4757";
+                startBtn.style.color = "#fff";
+                clearBtn.disabled = true;
+
+                trackPitch();
+            } catch (err) {
+                alert("Microphone access denied or unavailable. Please check browser permissions.");
+                console.error(err);
+            }
+        } else {
+            stopTracking();
+        }
+    }
+
+    function stopTracking() {
+        isTracking = false;
+        cancelAnimationFrame(animationFrameId);
+        if (microphone) {
+            microphone.disconnect();
+            // Stop the actual hardware microphone stream track
+            microphone.mediaStream.getTracks().forEach(track => track.stop());
+        }
+        startBtn.textContent = "🎤 Start Tracking";
+        startBtn.style.backgroundColor = "#00ffcc";
+        startBtn.style.color = "#121214";
+        clearBtn.disabled = false;
+    }
+
+    function resetTracker() {
+        pitchData = [];
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawGrid();
+        clearBtn.disabled = true;
+    }
+
+    // Pitch detection algorithm using Time-Domain Autocorrelation 
+    // It finds repeating cycles in the audio waveform to calculate fundamental frequency (F0).
+    function autoCorrelate(buffer, sampleRate) {
+        let SIZE = buffer.length;
+        let rms = 0;
+
+        for (let i = 0; i < SIZE; i++) {
+            let val = buffer[i];
+            rms += val * val;
+        }
+        rms = Math.sqrt(rms / SIZE);
+        if (rms < 0.01) return -1; // Audio signal is too quiet (silence/breathing)
+
+        let r1 = 0, r2 = SIZE - 1, thres = 0.2;
+        for (let i = 0; i < SIZE / 2; i++) {
+            if (Math.abs(buffer[i]) < thres) { r1 = i; break; }
+        }
+        for (let i = SIZE - 1; i >= SIZE / 2; i--) {
+            if (Math.abs(buffer[i]) < thres) { r2 = i; break; }
+        }
+
+        buffer = buffer.slice(r1, r2);
+        SIZE = buffer.length;
+
+        let c = new Float32Array(SIZE);
+        for (let i = 0; i < SIZE; i++) {
+            for (let j = 0; j < SIZE - i; j++) {
+                c[i] = c[i] + buffer[j] * buffer[j + i];
+            }
+        }
+
+        let d = 0; while (c[d] > c[d + 1]) d++;
+        let maxval = -1, maxpos = -1;
+        for (let i = d; i < SIZE; i++) {
+            if (c[i] > maxval) {
+                maxval = c[i];
+                maxpos = i;
+            }
+        }
+        let T0 = maxpos;
+
+        let x1 = c[T0 - 1], x2 = c[T0], x3 = c[T0 + 1];
+        let a = (x1 + x3 - 2 * x2) / 2;
+        let b = (x3 - x1) / 2;
+        if (a) T0 = T0 - b / (2 * a);
+
+        return sampleRate / T0;
+    }
+
+    function trackPitch() {
+        if (!isTracking) return;
+
+        const bufferLength = analyser.fftSize;
+        const dataArray = new Float32Array(bufferLength);
+        analyser.getFloatTimeDomainData(dataArray);
+
+        const elapsed = performance.now() - startTime;
+
+        if (elapsed <= maxDuration) {
+            const pitch = autoCorrelate(dataArray, audioCtx.sampleRate);
+            
+            // Log valid human voice pitch
+            if (pitch !== -1 && pitch >= MIN_FREQ && pitch <= MAX_FREQ) {
+                pitchData.push({ time: elapsed, pitch: pitch });
+            } else {
+                // Insert a break so silence doesn't unnaturally pull down or bridge lines
+                pitchData.push({ time: elapsed, pitch: null });
+            }
+            
+            drawPlot();
+            animationFrameId = requestAnimationFrame(trackPitch);
+        } else {
+            stopTracking();
+        }
+    }
+
+    function drawGrid() {
+        ctx.strokeStyle = '#29292e';
+        ctx.lineWidth = 1;
+        ctx.fillStyle = '#797982';
+        ctx.font = '24px sans-serif';
+
+        // Draw frequency grid lines (Y-axis labels)
+        for (let freq = 100; freq <= MAX_FREQ; freq += 50) {
+            const y = canvas.height - ((freq - MIN_FREQ) / (MAX_FREQ - MIN_FREQ)) * canvas.height;
+            ctx.beginPath();
+            ctx.moveTo(0, y);
+            ctx.lineTo(canvas.width, y);
+            ctx.stroke();
+            ctx.fillText(`${freq} Hz`, 15, y - 8);
+        }
+    }
+
+    function drawPlot() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawGrid();
+
+        if (pitchData.length === 0) return;
+
+        ctx.strokeStyle = '#00ffcc';
+        ctx.lineWidth = 6;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+
+        ctx.beginPath();
+        let isDrawing = false;
+
+        for (let i = 0; i < pitchData.length; i++) {
+            const point = pitchData[i];
+            
+            if (point.pitch === null) {
+                isDrawing = false; // Lift pen during gaps
+                continue;
+            }
+
+            // Map timeline to Canvas X coordinate
+            const x = (point.time / maxDuration) * canvas.width;
+            // Map pitch frequency safely to Canvas Y coordinate (inverted because 0,0 is top-left)
+            const y = canvas.height - ((point.pitch - MIN_FREQ) / (MAX_FREQ - MIN_FREQ)) * canvas.height;
+
+            if (!isDrawing) {
+                ctx.moveTo(x, y);
+                isDrawing = true;
+            } else {
+                ctx.lineTo(x, y);
+            }
+        }
+        ctx.stroke();
+    }
+
+    // Initial render setup
+    drawGrid();
+</script>
+
+</body>
+</html>
