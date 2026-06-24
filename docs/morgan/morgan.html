@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shade's Off</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rye&family=Special+Elite&display=swap');
+
+        body {
+            background-color: #1a0f0f;
+            background-image: radial-gradient(#3a1c1c 20%, #1a0f0f 80%);
+            color: #f4eccf;
+            font-family: 'Special Elite', Georgia, serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            overflow-x: hidden;
+            border: 15px solid #8b2626; /* Circus border */
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-family: 'Rye', cursive;
+            font-size: 4rem;
+            color: #ffc107;
+            text-shadow: 3px 3px 0px #8b2626, 6px 6px 0px #000;
+            margin-bottom: 20px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            text-align: center;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(0,0,0,0.8);
+            border: 3px double #ffc107;
+        }
+
+        video {
+            width: 200px;
+            max-width: 90vw;
+            border: 8px solid #f4eccf;
+            box-shadow: 0 0 20px rgba(0,0,0,0.9);
+            background: #000;
+        }
+
+        .crank-container {
+            margin-top: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            cursor: grab;
+        }
+
+        .crank-container:active {
+            cursor: grabbing;
+        }
+
+        /* The visual crank wheel */
+        #crank {
+            background: #3d3d3d;
+            border: 6px solid #ffc107;
+            border-radius: 50%;
+            box-shadow: inset 0 0 20px #000, 0 5px 15px rgba(0,0,0,0.5);
+            transition: transform 0.05s linear;
+        }
+
+        .instructions {
+            margin-top: 10px;
+            font-size: 0.9rem;
+            color: #bfa57a;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Shades On</h1>
+
+    <div class="container">
+        <!-- Replace the src with your actual video file -->
+        <video id="circus-video" preload="auto" muted playsinline>
+            <source src="./morgan.mp4" type="video/mp4">
+            Your browser does not support the video tag.
+        </video>
+
+        <div class="crank-container" id="crank-wrapper">
+            <canvas id="crank" width="150" height="150"></canvas>
+            <div class="instructions">DRAG TO CRANK THE WHEEL</div>
+        </div>
+    </div>
+
+    <script>
+        const video = document.getElementById('circus-video');
+        const crank = document.getElementById('crank');
+        const ctx = crank.getContext('2d');
+        const wrapper = document.getElementById('crank-wrapper');
+
+        let isDragging = false;
+        let previousAngle = 0;
+        let currentRotation = 0; // Tracks visual rotation of the handle
+
+        // --- Draw the Old-School Crank Handle ---
+        function drawCrank(angle) {
+            ctx.clearRect(0, 0, crank.width, crank.height);
+            const cx = crank.width / 2;
+            const cy = crank.height / 2;
+            const radius = 55;
+
+            ctx.save();
+            ctx.translate(cx, cy);
+            ctx.rotate(angle);
+
+            // Draw center cap
+            ctx.beginPath();
+            ctx.arc(0, 0, 15, 0, Math.PI * 2);
+            ctx.fillStyle = '#8b2626';
+            ctx.fill();
+            ctx.strokeStyle = '#ffc107';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Draw crank arm
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(radius, 0);
+            ctx.strokeStyle = '#9c9c9c';
+            ctx.lineWidth = 10;
+            ctx.lineCap = 'round';
+            ctx.stroke();
+
+            // Draw handle knob
+            ctx.beginPath();
+            ctx.arc(radius, 0, 12, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffc107';
+            ctx.fill();
+            ctx.strokeStyle = '#000';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            ctx.restore();
+        }
+
+        // Initial draw
+        drawCrank(0);
+
+        // --- Math Helper to get angle from center of wheel ---
+        function getAngle(clientX, clientY) {
+            const rect = crank.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            return Math.atan2(clientY - cy, clientX - cx);
+        }
+
+        // --- Interaction Handlers ---
+        function startDrag(e) {
+            isDragging = true;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            previousAngle = getAngle(clientX, clientY);
+        }
+
+        function handleDrag(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            const currentAngle = getAngle(clientX, clientY);
+
+            // Calculate change in angle
+            let deltaAngle = currentAngle - previousAngle;
+
+            // Handle the jump when passing from PI to -PI
+            if (deltaAngle > Math.PI) deltaAngle -= Math.PI * 2;
+            if (deltaAngle < -Math.PI) deltaAngle += Math.PI * 2;
+
+            // Update physical visual rotation
+            currentRotation += deltaAngle;
+            drawCrank(currentRotation);
+
+            // --- Map Crank to Video Playback ---
+            // Adjust the denominator (2) to change sensitivity. 
+            // Higher = crank slower; Lower = crank faster.
+            const timeDelta = deltaAngle / 2; 
+            
+            if (video.duration) {
+                let newTime = video.currentTime + timeDelta;
+                
+                // Keep video within bounds
+                if (newTime < 0) newTime = 0;
+                if (newTime > video.duration) newTime = video.duration;
+                
+                video.currentTime = newTime;
+            }
+
+            previousAngle = currentAngle;
+        }
+
+        function stopDrag() {
+            isDragging = false;
+        }
+
+        // Mouse Events
+        wrapper.addEventListener('mousedown', startDrag);
+        window.addEventListener('mousemove', handleDrag);
+        window.addEventListener('mouseup', stopDrag);
+
+        // Touch Events (for mobile)
+        wrapper.addEventListener('touchstart', startDrag, { passive: false });
+        window.addEventListener('touchmove', handleDrag, { passive: false });
+        window.addEventListener('touchend', stopDrag);
+    </script>
+</body>
+</html>
