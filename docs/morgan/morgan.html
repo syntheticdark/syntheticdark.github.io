@@ -100,6 +100,21 @@
     </div>
 
     <script>
+
+        // Tom Added #######
+        // Force mobile browsers to load the video metadata
+        video.load();
+
+        // A quick hack for iOS to unblock the video buffer
+        window.addEventListener('touchstart', () => {
+        video.play().then(() => {
+        video.pause();
+        }).catch(err => console.log("Video prep deferred"));
+        }, { once: true });
+
+        // To here #######
+
+        
         const video = document.getElementById('circus-video');
         const crank = document.getElementById('crank');
         const ctx = crank.getContext('2d');
